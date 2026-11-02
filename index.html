@@ -53,7 +53,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.2</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.3</div></div>
   </header>
 
   <div class="grid">
@@ -99,8 +99,8 @@
         <strong>Print PDF preview</strong>
         <span id="viewerMeta">Make the print PDF to preview it</span>
       </div>
-      <div id="empty" class="empty"><div><b>Your newly made PDF will appear here.</b>Choose your settings, then click MAKE PRINT PDF. You can scroll through every output page here before downloading.</div></div>
-      <div id="pdfWrap" class="pdfWrap" hidden><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
+      
+      <div id="pdfWrap" class="pdfWrap"><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
   </div>
   <footer>PDF Card Maker · Your PDF is processed on your device and is not uploaded.</footer>
@@ -119,7 +119,7 @@
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
     copies=el('copies'),flip=el('flip'),flipField=el('flipField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),downloadBtn=el('downloadBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
-    status=el('status'),empty=el('empty'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
+    status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
     viewerMeta=el('viewerMeta');
 
   let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
@@ -189,8 +189,6 @@
       outputUrl=null;
       downloadBtn.hidden=true;
       pdfPreview.removeAttribute('src');
-      pdfWrap.hidden=true;
-      empty.hidden=false;
       viewerMeta.textContent='Settings changed — make the print PDF again';
     }
   }
@@ -213,8 +211,6 @@
       sourceInfo.innerHTML='<b>'+pages.length+' PDF page'+(pages.length===1?'':'s')+'</b><br>Page size: <b>'+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</b>';
       if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
       pdfPreview.removeAttribute('src');
-      pdfWrap.hidden=true;
-      empty.hidden=false;
       viewerMeta.textContent='Source loaded — make the print PDF to preview it';
       setStatus('PDF ready.');
       updateUI(true);
@@ -281,8 +277,6 @@
       if(outputUrl)URL.revokeObjectURL(outputUrl);
       outputUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=FitH';
-      pdfWrap.hidden=false;
-      empty.hidden=true;
       viewerMeta.textContent=out.getPageCount()+' output pages · scroll to check them all';
       downloadBtn.hidden=false;
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
