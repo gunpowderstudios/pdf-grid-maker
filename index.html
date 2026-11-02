@@ -58,7 +58,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.6</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.7</div></div>
   </header>
 
   <div class="grid">
@@ -85,12 +85,8 @@
           <div class="field"><label for="sides">Printing</label><select id="sides"><option value="single">Single-sided</option><option value="double" selected>Double-sided</option></select></div>
           <div class="field"><label for="copies">Copies of each</label><input id="copies" type="number" min="1" step="1" value="1" /></div>
         </div>
-        <div class="field" id="flipField" style="margin-top:10px">
-          <label for="flip">Duplex flip</label>
-          <select id="flip"><option value="long" selected>Flip on long edge</option><option value="short">Flip on short edge</option></select>
-        </div>
         <label class="check"><input id="cropMarks" type="checkbox" /> Add crop marks</label>
-        <label class="check"><input id="centerGrid" type="checkbox" checked /> Centre the grid on each sheet</label>
+        <label class="check"><input id="centerGrid" type="checkbox" checked /> Centre grid horizontally</label>
         <div id="layoutInfo" class="summary">Upload a PDF to calculate the 100% layout.</div>
       </div>
 
@@ -123,7 +119,7 @@
 
   const el = id => document.getElementById(id);
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
-    copies=el('copies'),flip=el('flip'),flipField=el('flipField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
+    copies=el('copies'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
     viewerMeta=el('viewerMeta'),uploadProgress=el('uploadProgress'),
@@ -160,7 +156,7 @@
     if(cols<1||rows<1)return {sheetW,sheetH,cols:0,rows:0,perSheet:0,gridW:0,gridH:0,startX:0,startY:0};
     const gridW=cols*sourcePageW,gridH=rows*sourcePageH;
     const startX=centerGrid.checked?(sheetW-gridW)/2:reserve;
-    const startY=centerGrid.checked?(sheetH-gridH)/2:reserve;
+    const startY=(sheetH-gridH)/2;
     return {sheetW,sheetH,cols,rows,perSheet:cols*rows,gridW,gridH,startX,startY};
   }
 
@@ -184,7 +180,6 @@
   }
 
   function updateUI(resetPreview=false){
-    flipField.style.display=sides.value==='double'?'':'none';
     if(!sourceDoc)return;
     const p=sourceDoc.getPageCount(),l=getLayout();
     const physical=l.perSheet?Math.ceil(expandedDesigns().length/l.perSheet):0;
@@ -237,10 +232,7 @@
   }
 
   function mirroredSlot(layout,row,col){
-    let r=row,c=col;
-    const portrait=orientation.value==='portrait', long=flip.value==='long';
-    if((long&&portrait)||(!long&&!portrait))c=(layout.cols-1)-col; else r=(layout.rows-1)-row;
-    return {row:r,col:c};
+    return {row:row,col:(layout.cols-1)-col};
   }
 
   function drawCropMarksPdf(page,l){
@@ -320,7 +312,7 @@
     if(rebuildTimer)clearTimeout(rebuildTimer);
     rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
   }
-  [paper,orientation,sides,copies,flip,cropMarks,centerGrid].forEach(c=>{
+  [paper,orientation,sides,copies,cropMarks,centerGrid].forEach(c=>{
     c.addEventListener('change',scheduleRebuild);
     c.addEventListener('input',scheduleRebuild);
   });
