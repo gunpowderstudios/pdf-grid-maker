@@ -73,7 +73,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.8</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.9</div></div>
   </header>
 
   <div class="grid">
@@ -93,8 +93,12 @@
       <div class="section">
         <div class="label">2. Sheet setup</div>
         <div class="row">
-          <div class="field"><label for="paper">Paper</label><select id="paper"><option value="A4">A4</option><option value="A3" selected>A3</option></select></div>
+          <div class="field"><label for="paper">Paper</label><select id="paper"><option value="A4">A4</option><option value="A3" selected>A3</option><option value="custom">Custom</option></select></div>
           <div class="field"><label for="orientation">Orientation</label><select id="orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>
+        </div>
+        <div class="row" id="customSizeRow" style="margin-top:10px;display:none">
+          <div class="field"><label for="customWidth">Width (mm)</label><input id="customWidth" type="number" min="1" step="0.1" value="210" /></div>
+          <div class="field"><label for="customHeight">Height (mm)</label><input id="customHeight" type="number" min="1" step="0.1" value="297" /></div>
         </div>
         <div class="row" style="margin-top:10px">
           <div class="field"><label for="sides">Printing</label><select id="sides"><option value="single">Single-sided</option><option value="double" selected>Double-sided</option></select></div>
@@ -142,7 +146,8 @@
   const CROP_RESERVE_PT = 5 * MM_TO_PT;
 
   const el = id => document.getElementById(id);
-  const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
+  const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),
+    customSizeRow=el('customSizeRow'),customWidth=el('customWidth'),customHeight=el('customHeight'),sides=el('sides'),
     pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
     quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),
@@ -167,7 +172,13 @@
   }
 
   function sheetPoints(){
-    let [w,h]=PAPER_MM[paper.value];
+    let w,h;
+    if(paper.value==='custom'){
+      w=Math.max(1,parseFloat(customWidth.value||'1'));
+      h=Math.max(1,parseFloat(customHeight.value||'1'));
+    }else{
+      [w,h]=PAPER_MM[paper.value];
+    }
     if(orientation.value==='landscape')[w,h]=[h,w];
     return [w*MM_TO_PT,h*MM_TO_PT];
   }
@@ -290,6 +301,7 @@
   }
 
   function updateUI(resetPreview=false){
+    customSizeRow.style.display=paper.value==='custom'?'grid':'none';
     if(!sourceDoc)return;
     const p=sourceDoc.getPageCount(),l=getLayout();
     const physical=l.perSheet?Math.ceil(expandedDesigns().length/l.perSheet):0;
@@ -298,7 +310,8 @@
     if(mixedSizes)warning+='<div class="warning">Mixed source page sizes are not supported yet.</div>';
     if(sides.value==='double'&&p%2!==0)warning+='<div class="warning">Double-sided mode needs an even number of PDF pages.</div>';
     if(!l.perSheet)warning+='<div class="warning">The source page is too large for this sheet at 100%.</div>';
-    layoutInfo.innerHTML='<b>'+l.cols+' × '+l.rows+'</b> = <b>'+l.perSheet+' per side</b><br>'+
+    layoutInfo.innerHTML='Sheet: <b>'+round1(mm(l.sheetW))+' × '+round1(mm(l.sheetH))+' mm</b><br>'+
+      '<b>'+l.cols+' × '+l.rows+'</b> = <b>'+l.perSheet+' per side</b><br>'+
       'Grid: '+round1(mm(l.gridW||0))+' × '+round1(mm(l.gridH||0))+' mm<br>'+
       'Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+
@@ -486,7 +499,7 @@
     if(rebuildTimer)clearTimeout(rebuildTimer);
     rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
   }
-  [paper,orientation,cropMarks,cutLines,centerGrid].forEach(c=>{
+  [paper,orientation,customWidth,customHeight,cropMarks,cutLines,centerGrid].forEach(c=>{
     c.addEventListener('change',()=>{renderQuantityList();scheduleRebuild();});
     c.addEventListener('input',scheduleRebuild);
   });
