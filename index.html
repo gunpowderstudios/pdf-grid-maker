@@ -23,7 +23,7 @@
     .section{padding:18px 0;border-bottom:1px solid var(--line)}
     .section:first-child{padding-top:0}.section:last-child{border-bottom:0;padding-bottom:0}
     .label{font-size:12px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-    .drop{border:2px dashed #aeb9b1;border-radius:14px;padding:22px 16px;text-align:center;background:#fafbf9;cursor:pointer;transition:.18s ease}
+    .drop{display:block;border:2px dashed #aeb9b1;border-radius:14px;padding:28px 18px;text-align:center;background:#fafbf9;cursor:pointer;transition:.18s ease;overflow:hidden}
     .drop.drag{border-color:var(--green);background:var(--soft)} .drop strong{display:block;font-size:16px}
     .drop span{display:block;color:var(--muted);font-size:13px;margin-top:5px}
     input[type=file]{display:none}
@@ -40,22 +40,20 @@
     .viewer{min-height:740px;display:flex;flex-direction:column}
     .viewerHead{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
     .viewerHead strong{font-size:14px}.viewerHead span{font-size:12px;color:var(--muted)}
-    .previewBar{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center;gap:10px;background:#fafbf9}
-    .previewBar button{padding:7px 12px;background:#edf0ed}.previewBar .pageLabel{font-size:13px;min-width:150px;text-align:center;font-weight:750}
-    .canvasWrap{flex:1;min-height:650px;background:#c7c9c7;padding:22px;display:flex;align-items:flex-start;justify-content:center;overflow:auto}
-    canvas{display:block;max-width:100%;height:auto;background:white;box-shadow:0 4px 22px rgba(0,0,0,.18)}
+    .pdfWrap{flex:1;min-height:650px;background:#c7c9c7;overflow:hidden}
+    .pdfWrap iframe{display:block;width:100%;height:700px;border:0;background:#fff}
     .empty{flex:1;min-height:650px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:30px}
     .empty b{display:block;color:var(--ink);font-size:20px;margin-bottom:7px}
     .status{margin-top:12px;font-size:13px;min-height:20px;color:var(--muted)}.status.error{color:var(--danger);font-weight:700}
     footer{margin-top:20px;color:var(--muted);font-size:12px;text-align:center}
-    @media(max-width:850px){header{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.viewer{min-height:520px}.canvasWrap,.empty{min-height:480px}}
+    @media(max-width:850px){header{align-items:flex-start;flex-direction:column}.grid{grid-template-columns:1fr}.viewer{min-height:520px}.pdfWrap,.empty{min-height:480px}.pdfWrap iframe{height:520px}}
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div class="local">Runs locally in your browser</div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.2</div></div>
   </header>
 
   <div class="grid">
@@ -98,27 +96,19 @@
 
     <section class="panel viewer">
       <div class="viewerHead">
-        <strong id="viewerTitle">Imposed sheet preview</strong>
-        <span id="viewerMeta">No PDF loaded</span>
+        <strong>Print PDF preview</strong>
+        <span id="viewerMeta">Make the print PDF to preview it</span>
       </div>
-      <div id="previewBar" class="previewBar" hidden>
-        <button id="prevBtn">←</button>
-        <div id="pageLabel" class="pageLabel">Page 1</div>
-        <button id="nextBtn">→</button>
-      </div>
-      <div id="empty" class="empty"><div><b>Your imposed sheet will appear here.</b>Upload a PDF and the grid preview will build automatically.</div></div>
-      <div id="canvasWrap" class="canvasWrap" hidden><canvas id="sheetCanvas"></canvas></div>
+      <div id="empty" class="empty"><div><b>Your newly made PDF will appear here.</b>Choose your settings, then click MAKE PRINT PDF. You can scroll through every output page here before downloading.</div></div>
+      <div id="pdfWrap" class="pdfWrap" hidden><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
   </div>
   <footer>PDF Card Maker · Your PDF is processed on your device and is not uploaded.</footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
   const { PDFDocument, rgb } = PDFLib;
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-
   const MM_TO_PT = 72 / 25.4;
   const PAPER_MM = {A4:[210,297], A3:[297,420]};
   const CROP_GAP_PT = 1 * MM_TO_PT;
@@ -129,11 +119,11 @@
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
     copies=el('copies'),flip=el('flip'),flipField=el('flipField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),downloadBtn=el('downloadBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
-    status=el('status'),empty=el('empty'),canvasWrap=el('canvasWrap'),sheetCanvas=el('sheetCanvas'),
-    viewerMeta=el('viewerMeta'),previewBar=el('previewBar'),pageLabel=el('pageLabel'),prevBtn=el('prevBtn'),nextBtn=el('nextBtn');
+    status=el('status'),empty=el('empty'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
+    viewerMeta=el('viewerMeta');
 
-  let sourceBytes=null,sourceName='',sourceDoc=null,renderDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
-  let previewPageIndex=0, renderCache=new Map(), mixedSizes=false, previewRenderToken=0;
+  let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
+  let mixedSizes=false;
 
   const mm = pt => pt / MM_TO_PT;
   const round1 = n => Math.round(n*10)/10;
@@ -194,9 +184,15 @@
       'Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0);
-    if(resetPreview)previewPageIndex=0;
-    previewPageIndex=Math.min(previewPageIndex,Math.max(0,outPages-1));
-    renderPreview();
+    if(resetPreview && outputUrl){
+      URL.revokeObjectURL(outputUrl);
+      outputUrl=null;
+      downloadBtn.hidden=true;
+      pdfPreview.removeAttribute('src');
+      pdfWrap.hidden=true;
+      empty.hidden=false;
+      viewerMeta.textContent='Settings changed — make the print PDF again';
+    }
   }
 
   async function loadFile(file){
@@ -206,23 +202,24 @@
       const buf=await file.arrayBuffer();
       sourceBytes=new Uint8Array(buf);
       sourceDoc=await PDFDocument.load(sourceBytes.slice(),{ignoreEncryption:false});
-      renderDoc=await pdfjsLib.getDocument({data:sourceBytes.slice()}).promise;
       sourceName=file.name.replace(/\.pdf$/i,'');
       const pages=sourceDoc.getPages();
       if(!pages.length)throw new Error('The PDF has no pages.');
       const first=pages[0].getSize(); sourcePageW=first.width;sourcePageH=first.height;
       mixedSizes=false;
       for(let i=1;i<pages.length;i++){const s=pages[i].getSize();if(Math.abs(s.width-sourcePageW)>.5||Math.abs(s.height-sourcePageH)>.5){mixedSizes=true;break}}
-      renderCache.clear(); previewPageIndex=0;
       el('dropTitle').textContent=file.name;el('dropSub').textContent='Click to choose a different PDF';
       sourceInfo.hidden=false;
       sourceInfo.innerHTML='<b>'+pages.length+' PDF page'+(pages.length===1?'':'s')+'</b><br>Page size: <b>'+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</b>';
-      empty.hidden=true;canvasWrap.hidden=false;previewBar.hidden=false;
-      viewerMeta.textContent=pages.length+' source pages · '+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm';
+      if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
+      pdfPreview.removeAttribute('src');
+      pdfWrap.hidden=true;
+      empty.hidden=false;
+      viewerMeta.textContent='Source loaded — make the print PDF to preview it';
       setStatus('PDF ready.');
       updateUI(true);
     }catch(err){
-      console.error(err);sourceDoc=null;renderDoc=null;sourceBytes=null;makeBtn.disabled=true;
+      console.error(err);sourceDoc=null;sourceBytes=null;makeBtn.disabled=true;
       setStatus(err.message||'Could not read that PDF.',true);
     }
   }
@@ -232,72 +229,6 @@
     const portrait=orientation.value==='portrait', long=flip.value==='long';
     if((long&&portrait)||(!long&&!portrait))c=(layout.cols-1)-col; else r=(layout.rows-1)-row;
     return {row:r,col:c};
-  }
-
-  function sourcePageForPreview(outputIndex,pos,layout){
-    const designs=expandedDesigns();
-    const sheetIndex=sides.value==='double'?Math.floor(outputIndex/2):outputIndex;
-    const isBack=sides.value==='double'&&(outputIndex%2===1);
-    const idx=sheetIndex*layout.perSheet+pos;
-    if(idx>=designs.length)return null;
-    const d=designs[idx];
-    if(sides.value==='single')return {page:d+1,row:Math.floor(pos/layout.cols),col:pos%layout.cols};
-    const row=Math.floor(pos/layout.cols),col=pos%layout.cols;
-    if(!isBack)return {page:d*2+1,row,col};
-    const m=mirroredSlot(layout,row,col);
-    return {page:d*2+2,row:m.row,col:m.col};
-  }
-
-  async function getRenderedPage(pageNum,targetW){
-    const key=pageNum+'@'+Math.round(targetW);
-    if(renderCache.has(key))return renderCache.get(key);
-    const page=await renderDoc.getPage(pageNum);
-    const base=page.getViewport({scale:1});
-    const scale=Math.max(.2,targetW/base.width);
-    const vp=page.getViewport({scale});
-    const c=document.createElement('canvas');c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
-    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
-    renderCache.set(key,c); return c;
-  }
-
-  function drawCropMarksCanvas(ctx,scale,l){
-    const x0=l.startX*scale,y0=l.startY*scale,x1=(l.startX+l.gridW)*scale,y1=(l.startY+l.gridH)*scale;
-    const gap=CROP_GAP_PT*scale,len=CROP_LEN_PT*scale;
-    ctx.save();ctx.strokeStyle='#000';ctx.lineWidth=Math.max(1,.35*scale);
-    for(let c=0;c<=l.cols;c++){
-      const x=(l.startX+c*sourcePageW)*scale;
-      ctx.beginPath();ctx.moveTo(x,y0-gap-len);ctx.lineTo(x,y0-gap);ctx.moveTo(x,y1+gap);ctx.lineTo(x,y1+gap+len);ctx.stroke();
-    }
-    for(let r=0;r<=l.rows;r++){
-      const y=(l.startY+r*sourcePageH)*scale;
-      ctx.beginPath();ctx.moveTo(x0-gap-len,y);ctx.lineTo(x0-gap,y);ctx.moveTo(x1+gap,y);ctx.lineTo(x1+gap+len,y);ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  async function renderPreview(){
-    if(!sourceDoc||!renderDoc)return;
-    const token=++previewRenderToken;
-    const l=getLayout(),total=outputPageCount();
-    if(!l||!l.perSheet||!total)return;
-    previewPageIndex=Math.min(previewPageIndex,total-1);
-    const maxW=Math.min(760,canvasWrap.clientWidth?canvasWrap.clientWidth-44:760);
-    const scale=maxW/l.sheetW;
-    sheetCanvas.width=Math.round(l.sheetW*scale);sheetCanvas.height=Math.round(l.sheetH*scale);
-    const ctx=sheetCanvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,sheetCanvas.width,sheetCanvas.height);
-    for(let pos=0;pos<l.perSheet;pos++){
-      const info=sourcePageForPreview(previewPageIndex,pos,l); if(!info)continue;
-      const img=await getRenderedPage(info.page,sourcePageW*scale);
-      if(token!==previewRenderToken)return;
-      const x=(l.startX+info.col*sourcePageW)*scale;
-      const y=(l.startY+info.row*sourcePageH)*scale;
-      ctx.drawImage(img,x,y,sourcePageW*scale,sourcePageH*scale);
-    }
-    if(cropMarks.checked)drawCropMarksCanvas(ctx,scale,l);
-    const side=sides.value==='double'?(previewPageIndex%2===0?'Front':'Back'):'Sheet';
-    const sheetNo=sides.value==='double'?Math.floor(previewPageIndex/2)+1:previewPageIndex+1;
-    pageLabel.textContent=side+' '+sheetNo+' · page '+(previewPageIndex+1)+' / '+total;
-    prevBtn.disabled=previewPageIndex===0;nextBtn.disabled=previewPageIndex>=total-1;
   }
 
   function drawCropMarksPdf(page,l){
@@ -349,7 +280,12 @@
       const bytes=await out.save();
       if(outputUrl)URL.revokeObjectURL(outputUrl);
       outputUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
-      downloadBtn.hidden=false;setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
+      pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=FitH';
+      pdfWrap.hidden=false;
+      empty.hidden=true;
+      viewerMeta.textContent=out.getPageCount()+' output pages · scroll to check them all';
+      downloadBtn.hidden=false;
+      setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
     }catch(err){console.error(err);setStatus(err.message||'Could not create the print PDF.',true)}
     finally{makeBtn.disabled=false}
   }
@@ -362,8 +298,6 @@
 
   pdfInput.addEventListener('change',e=>loadFile(e.target.files[0]));
   makeBtn.addEventListener('click',makePrintPdf);downloadBtn.addEventListener('click',downloadOutput);
-  prevBtn.addEventListener('click',()=>{if(previewPageIndex>0){previewPageIndex--;renderPreview()}});
-  nextBtn.addEventListener('click',()=>{if(previewPageIndex<outputPageCount()-1){previewPageIndex++;renderPreview()}});
   [paper,orientation,sides,copies,flip,cropMarks,centerGrid].forEach(c=>{c.addEventListener('change',()=>updateUI(true));c.addEventListener('input',()=>updateUI(true))});
   ['dragenter','dragover'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.add('drag')}));
   ['dragleave','drop'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
