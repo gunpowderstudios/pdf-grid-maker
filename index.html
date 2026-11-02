@@ -69,7 +69,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.4</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.5</div></div>
   </header>
 
   <div class="grid">
@@ -348,8 +348,8 @@
   async function makePreviewPdf(printBytes, layout, designs, pageCount){
     const previewDoc=await PDFDocument.load(printBytes.slice());
     const pages=previewDoc.getPages();
-    const badgeRadius=8;
-    const badgeFontSize=8;
+    const badgeRadius=16;
+    const badgeFontSize=16;
     const white=rgb(1,1,1);
     const green=rgb(23/255,75/255,57/255);
 
@@ -379,8 +379,8 @@
         }
 
         const xy=slotXY(layout,rr,cc);
-        const cx=xy.x+sourcePageW-10;
-        const cy=xy.y+sourcePageH-10;
+        const cx=xy.x+(sourcePageW/3);
+        const cy=xy.y+(sourcePageH/3);
         page.drawCircle({x:cx,y:cy,size:badgeRadius,color:green});
         const text=String(sourcePageNo);
         const tw=text.length*badgeFontSize*.55;
