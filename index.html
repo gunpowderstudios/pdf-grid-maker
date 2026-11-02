@@ -73,7 +73,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.9</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.0</div></div>
   </header>
 
   <div class="grid">
@@ -88,6 +88,15 @@
         <div id="uploadProgress" class="progress"><div id="uploadProgressBar" class="progressBar"></div></div>
         <div id="uploadProgressText" class="progressText"></div>
         <div id="sourceInfo" class="summary" hidden></div>
+        <div id="sourceSizeControls" class="summary" hidden>
+          <b>Imported PDF size</b>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label for="sourceWidthMm">Width (mm)</label><input id="sourceWidthMm" type="number" min="1" step="0.1" /></div>
+            <div class="field"><label for="sourceHeightMm">Height (mm)</label><input id="sourceHeightMm" type="number" min="1" step="0.1" /></div>
+          </div>
+          <label class="check"><input id="lockAspect" type="checkbox" checked /> Lock proportions</label>
+          <button id="resetSourceSize" class="secondary full" type="button" style="margin-top:10px">RESET TO PDF SIZE</button>
+        </div>
       </div>
 
       <div class="section">
@@ -149,13 +158,15 @@
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),
     customSizeRow=el('customSizeRow'),customWidth=el('customWidth'),customHeight=el('customHeight'),sides=el('sides'),
     pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),centerGrid=el('centerGrid'),
-    makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
+    makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),sourceSizeControls=el('sourceSizeControls'),
+    sourceWidthMm=el('sourceWidthMm'),sourceHeightMm=el('sourceHeightMm'),lockAspect=el('lockAspect'),resetSourceSize=el('resetSourceSize'),
+    layoutInfo=el('layoutInfo'),
     quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
     viewerMeta=el('viewerMeta'),uploadProgress=el('uploadProgress'),
     uploadProgressBar=el('uploadProgressBar'),uploadProgressText=el('uploadProgressText');
 
-  let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
+  let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,sourceNaturalW=0,sourceNaturalH=0,outputUrl=null;
   let mixedSizes=false;
   let singleQuantities=[];
   let doubleQuantities=[];
@@ -169,6 +180,34 @@
     uploadProgress.classList.toggle('show',show);
     uploadProgressText.classList.toggle('show',show);
     uploadProgressText.textContent=text||'';
+  }
+
+  function syncSourceSize(changed){
+    if(!sourceDoc)return;
+    let w=Math.max(1,parseFloat(sourceWidthMm.value||'1'));
+    let h=Math.max(1,parseFloat(sourceHeightMm.value||'1'));
+    const ratio=sourceNaturalW/sourceNaturalH;
+    if(lockAspect.checked){
+      if(changed==='w'){
+        h=w/ratio;
+        sourceHeightMm.value=round1(h);
+      }else if(changed==='h'){
+        w=h*ratio;
+        sourceWidthMm.value=round1(w);
+      }
+    }
+    sourcePageW=w*MM_TO_PT;
+    sourcePageH=h*MM_TO_PT;
+  }
+
+  function resetImportedSize(){
+    if(!sourceDoc)return;
+    sourcePageW=sourceNaturalW;
+    sourcePageH=sourceNaturalH;
+    sourceWidthMm.value=round1(mm(sourceNaturalW));
+    sourceHeightMm.value=round1(mm(sourceNaturalH));
+    renderQuantityList();
+    scheduleRebuild();
   }
 
   function sheetPoints(){
@@ -332,14 +371,19 @@
       sourceName=file.name.replace(/\.pdf$/i,'');
       const pages=sourceDoc.getPages();
       if(!pages.length)throw new Error('The PDF has no pages.');
-      const first=pages[0].getSize(); sourcePageW=first.width;sourcePageH=first.height;
+      const first=pages[0].getSize();
+      sourceNaturalW=first.width;sourceNaturalH=first.height;
+      sourcePageW=first.width;sourcePageH=first.height;
+      sourceWidthMm.value=round1(mm(sourcePageW));
+      sourceHeightMm.value=round1(mm(sourcePageH));
+      sourceSizeControls.hidden=false;
       singleQuantities=Array(pages.length).fill(1);
       doubleQuantities=Array(Math.floor(pages.length/2)).fill(1);
       mixedSizes=false;
       for(let i=1;i<pages.length;i++){const s=pages[i].getSize();if(Math.abs(s.width-sourcePageW)>.5||Math.abs(s.height-sourcePageH)>.5){mixedSizes=true;break}}
       el('dropTitle').textContent=file.name;el('dropSub').textContent='Click to choose a different PDF';
       sourceInfo.hidden=false;
-      sourceInfo.innerHTML='<b>'+pages.length+' PDF page'+(pages.length===1?'':'s')+'</b><br>Page size: <b>'+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</b>';
+      sourceInfo.innerHTML='<b>'+pages.length+' PDF page'+(pages.length===1?'':'s')+'</b><br>Original PDF size: <b>'+round1(mm(sourceNaturalW))+' × '+round1(mm(sourceNaturalH))+' mm</b>';
       setProgress(68,'Building imposed preview…',true);
       if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
       pdfPreview.removeAttribute('src');
@@ -511,6 +555,11 @@
     renderQuantityList();
     scheduleRebuild();
   });
+  sourceWidthMm.addEventListener('input',()=>{syncSourceSize('w');renderQuantityList();scheduleRebuild();});
+  sourceHeightMm.addEventListener('input',()=>{syncSourceSize('h');renderQuantityList();scheduleRebuild();});
+  lockAspect.addEventListener('change',()=>syncSourceSize('w'));
+  resetSourceSize.addEventListener('click',resetImportedSize);
+
   applyAllBtn.addEventListener('click',()=>{
     const v=Math.max(0,parseInt(setAllQty.value||'0',10));
     if(sides.value==='double'){
