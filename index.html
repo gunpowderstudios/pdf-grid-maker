@@ -73,7 +73,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.7</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.8</div></div>
   </header>
 
   <div class="grid">
@@ -101,6 +101,7 @@
           <div class="field" id="pageFilterField"><label for="pageFilter">Pages</label><select id="pageFilter"><option value="all">All pages</option><option value="odd">Odd (Fronts)</option><option value="even">Even (Backs)</option></select></div>
         </div>
         <label class="check"><input id="cropMarks" type="checkbox" /> Add crop marks</label>
+        <label class="check"><input id="cutLines" type="checkbox" /> Fine grey cut lines</label>
         <label class="check"><input id="centerGrid" type="checkbox" checked /> Centre grid horizontally</label>
         <div id="layoutInfo" class="summary">Upload a PDF to calculate the 100% layout.</div>
       </div>
@@ -142,7 +143,7 @@
 
   const el = id => document.getElementById(id);
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
-    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
+    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
     quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
@@ -300,7 +301,8 @@
     layoutInfo.innerHTML='<b>'+l.cols+' × '+l.rows+'</b> = <b>'+l.perSheet+' per side</b><br>'+
       'Grid: '+round1(mm(l.gridW||0))+' × '+round1(mm(l.gridH||0))+' mm<br>'+
       'Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
-      (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+warning;
+      (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+
+      (cutLines.checked?'<br>Fine grey cut lines: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0)||expandedDesigns().length===0;
   }
 
@@ -359,6 +361,14 @@
       page.drawLine({start:{x:left-CROP_GAP_PT-CROP_LEN_PT,y},end:{x:left-CROP_GAP_PT,y},thickness,color:black});
       page.drawLine({start:{x:right+CROP_GAP_PT,y},end:{x:right+CROP_GAP_PT+CROP_LEN_PT,y},thickness,color:black});
     }
+  }
+
+  function drawCutLinePdf(page,x,y){
+    const grey=rgb(.65,.65,.65);
+    page.drawRectangle({
+      x:x,y:y,width:sourcePageW,height:sourcePageH,
+      borderColor:grey,borderWidth:.35
+    });
   }
 
   function slotXY(l,row,col){
@@ -432,10 +442,13 @@
           const fxy=slotXY(l,row,col);
           if(sides.value==='single'){
             front.drawPage(embedded[d],{x:fxy.x,y:fxy.y,width:sourcePageW,height:sourcePageH});
+            if(cutLines.checked)drawCutLinePdf(front,fxy.x,fxy.y);
           }else{
             front.drawPage(embedded[d*2],{x:fxy.x,y:fxy.y,width:sourcePageW,height:sourcePageH});
+            if(cutLines.checked)drawCutLinePdf(front,fxy.x,fxy.y);
             const m=mirroredSlot(l,row,col),bxy=slotXY(l,m.row,m.col);
             back.drawPage(embedded[d*2+1],{x:bxy.x,y:bxy.y,width:sourcePageW,height:sourcePageH});
+            if(cutLines.checked)drawCutLinePdf(back,bxy.x,bxy.y);
           }
         }
         if(cropMarks.checked){drawCropMarksPdf(front,l);if(back)drawCropMarksPdf(back,l)}
@@ -473,7 +486,7 @@
     if(rebuildTimer)clearTimeout(rebuildTimer);
     rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
   }
-  [paper,orientation,cropMarks,centerGrid].forEach(c=>{
+  [paper,orientation,cropMarks,cutLines,centerGrid].forEach(c=>{
     c.addEventListener('change',()=>{renderQuantityList();scheduleRebuild();});
     c.addEventListener('input',scheduleRebuild);
   });
