@@ -53,7 +53,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.3</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.4</div></div>
   </header>
 
   <div class="grid">
@@ -88,8 +88,7 @@
       </div>
 
       <div class="section">
-        <button id="makeBtn" class="primary full" disabled>MAKE PRINT PDF</button>
-        <button id="downloadBtn" class="secondary full" hidden>DOWNLOAD PDF</button>
+        <button id="makeBtn" class="primary full" disabled>DOWNLOAD PDF</button>
         <div id="status" class="status"></div>
       </div>
     </section>
@@ -118,7 +117,7 @@
   const el = id => document.getElementById(id);
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
     copies=el('copies'),flip=el('flip'),flipField=el('flipField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
-    makeBtn=el('makeBtn'),downloadBtn=el('downloadBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
+    makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
     viewerMeta=el('viewerMeta');
 
@@ -184,13 +183,7 @@
       'Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0);
-    if(resetPreview && outputUrl){
-      URL.revokeObjectURL(outputUrl);
-      outputUrl=null;
-      downloadBtn.hidden=true;
-      pdfPreview.removeAttribute('src');
-      viewerMeta.textContent='Settings changed — make the print PDF again';
-    }
+
   }
 
   async function loadFile(file){
@@ -211,9 +204,10 @@
       sourceInfo.innerHTML='<b>'+pages.length+' PDF page'+(pages.length===1?'':'s')+'</b><br>Page size: <b>'+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</b>';
       if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
       pdfPreview.removeAttribute('src');
-      viewerMeta.textContent='Source loaded — make the print PDF to preview it';
+      viewerMeta.textContent='Building imposed preview…';
       setStatus('PDF ready.');
-      updateUI(true);
+      updateUI(false);
+      if(!makeBtn.disabled) await buildPrintPdf(false);
     }catch(err){
       console.error(err);sourceDoc=null;sourceBytes=null;makeBtn.disabled=true;
       setStatus(err.message||'Could not read that PDF.',true);
@@ -246,13 +240,14 @@
     return {x:l.startX+col*sourcePageW,y:l.sheetH-l.startY-(row+1)*sourcePageH};
   }
 
-  async function makePrintPdf(){
+  async function buildPrintPdf(downloadAfter){
     if(!sourceDoc||!sourceBytes)return;
     updateUI();
     const l=getLayout(),pageCount=sourceDoc.getPageCount();
     if(!l||!l.perSheet)return;
     if(sides.value==='double'&&pageCount%2!==0){setStatus('Double-sided mode needs an even number of source pages.',true);return}
-    makeBtn.disabled=true;downloadBtn.hidden=true;setStatus('Building print PDF…');
+    const wasDisabled=makeBtn.disabled;
+    makeBtn.disabled=true;setStatus(downloadAfter?'Building download PDF…':'Building preview…');
     try{
       const out=await PDFDocument.create();
       const embedded=await out.embedPdf(sourceBytes.slice(),Array.from({length:pageCount},(_,i)=>i));
@@ -278,21 +273,31 @@
       outputUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=FitH';
       viewerMeta.textContent=out.getPageCount()+' output pages · scroll to check them all';
-      downloadBtn.hidden=false;
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
+      if(downloadAfter){
+        const a=document.createElement('a');
+        a.href=outputUrl;
+        a.download=(sourceName||'cards')+'-print-ready.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
     }catch(err){console.error(err);setStatus(err.message||'Could not create the print PDF.',true)}
-    finally{makeBtn.disabled=false}
-  }
-
-  function downloadOutput(){
-    if(!outputUrl)return;
-    const a=document.createElement('a');a.href=outputUrl;a.download=(sourceName||'cards')+'-print-ready.pdf';
-    document.body.appendChild(a);a.click();a.remove();
+    finally{makeBtn.disabled=wasDisabled}
   }
 
   pdfInput.addEventListener('change',e=>loadFile(e.target.files[0]));
-  makeBtn.addEventListener('click',makePrintPdf);downloadBtn.addEventListener('click',downloadOutput);
-  [paper,orientation,sides,copies,flip,cropMarks,centerGrid].forEach(c=>{c.addEventListener('change',()=>updateUI(true));c.addEventListener('input',()=>updateUI(true))});
+  makeBtn.addEventListener('click',()=>buildPrintPdf(true));
+  let rebuildTimer=null;
+  function scheduleRebuild(){
+    updateUI(false);
+    if(rebuildTimer)clearTimeout(rebuildTimer);
+    rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
+  }
+  [paper,orientation,sides,copies,flip,cropMarks,centerGrid].forEach(c=>{
+    c.addEventListener('change',scheduleRebuild);
+    c.addEventListener('input',scheduleRebuild);
+  });
   ['dragenter','dragover'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.add('drag')}));
   ['dragleave','drop'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
   dropZone.addEventListener('drop',e=>{const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFile(f)});
