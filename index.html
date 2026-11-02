@@ -26,6 +26,11 @@
     .drop{display:block;border:2px dashed #aeb9b1;border-radius:14px;padding:28px 18px;text-align:center;background:#fafbf9;cursor:pointer;transition:.18s ease;overflow:hidden}
     .drop.drag{border-color:var(--green);background:var(--soft)} .drop strong{display:block;font-size:16px}
     .drop span{display:block;color:var(--muted);font-size:13px;margin-top:5px}
+    .progress{margin-top:12px;height:10px;border-radius:999px;background:#e5e9e6;overflow:hidden;display:none}
+    .progress.show{display:block}
+    .progressBar{height:100%;width:0%;background:var(--green);transition:width .18s ease}
+    .progressText{margin-top:7px;font-size:12px;color:var(--muted);display:none}
+    .progressText.show{display:block}
     input[type=file]{display:none}
     select,input[type=number]{width:100%;appearance:none;border:1px solid #cbd1cc;border-radius:11px;background:#fff;padding:11px 12px;font:inherit;color:var(--ink);outline:none}
     select:focus,input[type=number]:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(23,75,57,.1)}
@@ -53,7 +58,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.5</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.6</div></div>
   </header>
 
   <div class="grid">
@@ -65,6 +70,8 @@
           <span id="dropSub">or click to choose a file</span>
         </label>
         <input id="pdfInput" type="file" accept="application/pdf,.pdf" />
+        <div id="uploadProgress" class="progress"><div id="uploadProgressBar" class="progressBar"></div></div>
+        <div id="uploadProgressText" class="progressText"></div>
         <div id="sourceInfo" class="summary" hidden></div>
       </div>
 
@@ -119,7 +126,8 @@
     copies=el('copies'),flip=el('flip'),flipField=el('flipField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
-    viewerMeta=el('viewerMeta');
+    viewerMeta=el('viewerMeta'),uploadProgress=el('uploadProgress'),
+    uploadProgressBar=el('uploadProgressBar'),uploadProgressText=el('uploadProgressText');
 
   let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
   let mixedSizes=false;
@@ -127,6 +135,13 @@
   const mm = pt => pt / MM_TO_PT;
   const round1 = n => Math.round(n*10)/10;
   const setStatus=(m,e=false)=>{status.textContent=m;status.className='status'+(e?' error':'')};
+  function setProgress(percent,text,show=true){
+    const p=Math.max(0,Math.min(100,percent));
+    uploadProgressBar.style.width=p+'%';
+    uploadProgress.classList.toggle('show',show);
+    uploadProgressText.classList.toggle('show',show);
+    uploadProgressText.textContent=text||'';
+  }
 
   function sheetPoints(){
     let [w,h]=PAPER_MM[paper.value];
@@ -189,10 +204,13 @@
   async function loadFile(file){
     if(!file)return;
     setStatus('Reading PDF…');
+    setProgress(8,'Reading PDF…',true);
     try{
       const buf=await file.arrayBuffer();
+      setProgress(30,'Loading PDF pages…',true);
       sourceBytes=new Uint8Array(buf);
       sourceDoc=await PDFDocument.load(sourceBytes.slice(),{ignoreEncryption:false});
+      setProgress(50,'Checking page size and layout…',true);
       sourceName=file.name.replace(/\.pdf$/i,'');
       const pages=sourceDoc.getPages();
       if(!pages.length)throw new Error('The PDF has no pages.');
@@ -202,15 +220,19 @@
       el('dropTitle').textContent=file.name;el('dropSub').textContent='Click to choose a different PDF';
       sourceInfo.hidden=false;
       sourceInfo.innerHTML='<b>'+pages.length+' PDF page'+(pages.length===1?'':'s')+'</b><br>Page size: <b>'+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</b>';
+      setProgress(68,'Building imposed preview…',true);
       if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
       pdfPreview.removeAttribute('src');
       viewerMeta.textContent='Building imposed preview…';
       setStatus('PDF ready.');
       updateUI(false);
       if(!makeBtn.disabled) await buildPrintPdf(false);
+      setProgress(100,'Ready',true);
+      setTimeout(()=>setProgress(100,'',false),700);
     }catch(err){
       console.error(err);sourceDoc=null;sourceBytes=null;makeBtn.disabled=true;
       setStatus(err.message||'Could not read that PDF.',true);
+      setProgress(0,'Upload failed',true);
     }
   }
 
@@ -247,7 +269,9 @@
     if(!l||!l.perSheet)return;
     if(sides.value==='double'&&pageCount%2!==0){setStatus('Double-sided mode needs an even number of source pages.',true);return}
     const wasDisabled=makeBtn.disabled;
-    makeBtn.disabled=true;setStatus(downloadAfter?'Building download PDF…':'Building preview…');
+    makeBtn.disabled=true;
+    setStatus(downloadAfter?'Building download PDF…':'Building preview…');
+    setProgress(downloadAfter?72:72,downloadAfter?'Building download PDF…':'Building imposed preview…',true);
     try{
       const out=await PDFDocument.create();
       const embedded=await out.embedPdf(sourceBytes.slice(),Array.from({length:pageCount},(_,i)=>i));
@@ -274,6 +298,8 @@
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
       viewerMeta.textContent=out.getPageCount()+' output pages · scroll to check them all';
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
+      setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
+      setTimeout(()=>setProgress(100,'',false),700);
       if(downloadAfter){
         const a=document.createElement('a');
         a.href=outputUrl;
