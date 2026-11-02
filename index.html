@@ -42,6 +42,16 @@
     button:disabled{opacity:.45;cursor:not-allowed;transform:none}.secondary{background:#eef1ee;color:var(--ink);margin-top:8px}
     .summary{margin-top:12px;background:#f7f8f6;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;line-height:1.55;color:#455048}
     .summary b{color:var(--ink)}.warning{color:var(--danger);font-weight:700;margin-top:8px}
+    .qtyTools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+    .qtyList{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fafbf9}
+    .qtyRow{display:grid;grid-template-columns:1fr 74px 88px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line)}
+    .qtyRow:last-child{border-bottom:0}
+    .qtyName{font-size:13px;line-height:1.25}
+    .qtyName b{display:block;color:var(--ink)}
+    .qtyName span{color:var(--muted);font-size:11px}
+    .qtyRow input{padding:8px 9px;text-align:center}
+    .miniBtn{padding:8px 9px;border-radius:9px;background:#edf0ed;color:var(--ink);font-size:11px}
+    .hidden{display:none!important}
     .viewer{min-height:980px;display:flex;flex-direction:column}
     .viewerHead{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
     .viewerHead strong{font-size:14px}.viewerHead span{font-size:12px;color:var(--muted)}
@@ -58,7 +68,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.7</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.8</div></div>
   </header>
 
   <div class="grid">
@@ -83,11 +93,20 @@
         </div>
         <div class="row" style="margin-top:10px">
           <div class="field"><label for="sides">Printing</label><select id="sides"><option value="single">Single-sided</option><option value="double" selected>Double-sided</option></select></div>
-          <div class="field"><label for="copies">Copies of each</label><input id="copies" type="number" min="1" step="1" value="1" /></div>
+          <div class="field" id="pageFilterField"><label for="pageFilter">Pages</label><select id="pageFilter"><option value="all">All pages</option><option value="odd">Odd pages only</option><option value="even">Even pages only</option></select></div>
         </div>
         <label class="check"><input id="cropMarks" type="checkbox" /> Add crop marks</label>
         <label class="check"><input id="centerGrid" type="checkbox" checked /> Centre grid horizontally</label>
         <div id="layoutInfo" class="summary">Upload a PDF to calculate the 100% layout.</div>
+      </div>
+
+      <div class="section" id="quantitySection" hidden>
+        <div class="label">3. Quantities</div>
+        <div class="qtyTools">
+          <div class="field"><label for="setAllQty">Set all to</label><input id="setAllQty" type="number" min="0" step="1" value="1" /></div>
+          <div class="field" style="display:flex;align-items:flex-end"><button id="applyAllBtn" class="secondary full" style="margin:0">APPLY TO ALL</button></div>
+        </div>
+        <div id="qtyList" class="qtyList"></div>
       </div>
 
       <div class="section">
@@ -119,14 +138,17 @@
 
   const el = id => document.getElementById(id);
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),sides=el('sides'),
-    copies=el('copies'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
+    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
+    quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
     viewerMeta=el('viewerMeta'),uploadProgress=el('uploadProgress'),
     uploadProgressBar=el('uploadProgressBar'),uploadProgressText=el('uploadProgressText');
 
   let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
   let mixedSizes=false;
+  let singleQuantities=[];
+  let doubleQuantities=[];
 
   const mm = pt => pt / MM_TO_PT;
   const round1 = n => Math.round(n*10)/10;
@@ -166,11 +188,78 @@
     return sides.value==='double'?Math.floor(p/2):p;
   }
 
+  function pageAllowed(pageIndex){
+    if(sides.value!=='single')return true;
+    const pageNo=pageIndex+1;
+    if(pageFilter.value==='odd')return pageNo%2===1;
+    if(pageFilter.value==='even')return pageNo%2===0;
+    return true;
+  }
+
   function expandedDesigns(){
-    const qty=Math.max(1,parseInt(copies.value||'1',10));
     const arr=[];
-    for(let d=0;d<designCount();d++)for(let q=0;q<qty;q++)arr.push(d);
+    if(!sourceDoc)return arr;
+    if(sides.value==='double'){
+      for(let d=0;d<doubleQuantities.length;d++){
+        const qty=Math.max(0,parseInt(doubleQuantities[d]||0,10));
+        for(let q=0;q<qty;q++)arr.push(d);
+      }
+    }else{
+      for(let p=0;p<singleQuantities.length;p++){
+        if(!pageAllowed(p))continue;
+        const qty=Math.max(0,parseInt(singleQuantities[p]||0,10));
+        for(let q=0;q<qty;q++)arr.push(p);
+      }
+    }
     return arr;
+  }
+
+  function renderQuantityList(){
+    if(!sourceDoc)return;
+    quantitySection.hidden=false;
+    pageFilterField.classList.toggle('hidden',sides.value!=='single');
+    const l=getLayout();
+    const fillQty=l&&l.perSheet?l.perSheet:1;
+    const rows=[];
+    if(sides.value==='double'){
+      for(let d=0;d<doubleQuantities.length;d++){
+        rows.push('<div class="qtyRow" data-kind="double" data-index="'+d+'">'+
+          '<div class="qtyName"><b>Card '+(d+1)+'</b><span>PDF pages '+(d*2+1)+' + '+(d*2+2)+'</span></div>'+
+          '<input class="qtyInput" type="number" min="0" step="1" value="'+doubleQuantities[d]+'">'+
+          '<button class="miniBtn fillBtn" type="button">FILL SHEET</button></div>');
+      }
+    }else{
+      for(let p=0;p<singleQuantities.length;p++){
+        if(!pageAllowed(p))continue;
+        rows.push('<div class="qtyRow" data-kind="single" data-index="'+p+'">'+
+          '<div class="qtyName"><b>Page '+(p+1)+'</b><span>Single-sided</span></div>'+
+          '<input class="qtyInput" type="number" min="0" step="1" value="'+singleQuantities[p]+'">'+
+          '<button class="miniBtn fillBtn" type="button">FILL SHEET</button></div>');
+      }
+    }
+    qtyList.innerHTML=rows.join('')||'<div style="padding:12px;color:var(--muted);font-size:13px">No pages selected.</div>';
+
+    qtyList.querySelectorAll('.qtyRow').forEach(row=>{
+      const idx=parseInt(row.dataset.index,10);
+      const kind=row.dataset.kind;
+      const input=row.querySelector('.qtyInput');
+      input.addEventListener('input',()=>{
+        const v=Math.max(0,parseInt(input.value||'0',10));
+        if(kind==='double')doubleQuantities[idx]=v; else singleQuantities[idx]=v;
+        scheduleRebuild();
+      });
+      row.querySelector('.fillBtn').addEventListener('click',()=>{
+        if(kind==='double'){
+          doubleQuantities=doubleQuantities.map(()=>0);
+          doubleQuantities[idx]=fillQty;
+        }else{
+          singleQuantities=singleQuantities.map(()=>0);
+          singleQuantities[idx]=fillQty;
+        }
+        renderQuantityList();
+        scheduleRebuild();
+      });
+    });
   }
 
   function outputPageCount(){
@@ -192,8 +281,7 @@
       'Grid: '+round1(mm(l.gridW||0))+' × '+round1(mm(l.gridH||0))+' mm<br>'+
       'Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+warning;
-    makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0);
-
+    makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0)||expandedDesigns().length===0;
   }
 
   async function loadFile(file){
@@ -210,6 +298,8 @@
       const pages=sourceDoc.getPages();
       if(!pages.length)throw new Error('The PDF has no pages.');
       const first=pages[0].getSize(); sourcePageW=first.width;sourcePageH=first.height;
+      singleQuantities=Array(pages.length).fill(1);
+      doubleQuantities=Array(Math.floor(pages.length/2)).fill(1);
       mixedSizes=false;
       for(let i=1;i<pages.length;i++){const s=pages[i].getSize();if(Math.abs(s.width-sourcePageW)>.5||Math.abs(s.height-sourcePageH)>.5){mixedSizes=true;break}}
       el('dropTitle').textContent=file.name;el('dropSub').textContent='Click to choose a different PDF';
@@ -220,6 +310,7 @@
       pdfPreview.removeAttribute('src');
       viewerMeta.textContent='Building imposed preview…';
       setStatus('PDF ready.');
+      renderQuantityList();
       updateUI(false);
       if(!makeBtn.disabled) await buildPrintPdf(false);
       setProgress(100,'Ready',true);
@@ -312,9 +403,27 @@
     if(rebuildTimer)clearTimeout(rebuildTimer);
     rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
   }
-  [paper,orientation,sides,copies,cropMarks,centerGrid].forEach(c=>{
-    c.addEventListener('change',scheduleRebuild);
+  [paper,orientation,cropMarks,centerGrid].forEach(c=>{
+    c.addEventListener('change',()=>{renderQuantityList();scheduleRebuild();});
     c.addEventListener('input',scheduleRebuild);
+  });
+  sides.addEventListener('change',()=>{
+    renderQuantityList();
+    scheduleRebuild();
+  });
+  pageFilter.addEventListener('change',()=>{
+    renderQuantityList();
+    scheduleRebuild();
+  });
+  applyAllBtn.addEventListener('click',()=>{
+    const v=Math.max(0,parseInt(setAllQty.value||'0',10));
+    if(sides.value==='double'){
+      doubleQuantities=doubleQuantities.map(()=>v);
+    }else{
+      for(let p=0;p<singleQuantities.length;p++)if(pageAllowed(p))singleQuantities[p]=v;
+    }
+    renderQuantityList();
+    scheduleRebuild();
   });
   ['dragenter','dragover'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.add('drag')}));
   ['dragleave','drop'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
