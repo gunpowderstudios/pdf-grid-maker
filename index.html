@@ -55,6 +55,8 @@
     .viewer{height:calc(100vh - 120px);min-height:700px;display:flex;flex-direction:column;position:sticky;top:12px}
     .viewerHead{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
     .viewerHead strong{font-size:14px}.viewerHead span{font-size:12px;color:var(--muted)}
+    .previewLabels{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:#fafbf9;overflow-x:auto;white-space:nowrap}
+    .pageChip{font-size:11px;font-weight:800;color:var(--green2);background:var(--soft);border:1px solid #ccdacf;border-radius:999px;padding:5px 8px}
     .pdfWrap{flex:1;min-height:0;background:#c7c9c7;overflow:hidden}
     .pdfWrap iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     .empty{flex:1;min-height:650px;display:grid;place-items:center;text-align:center;color:var(--muted);padding:30px}
@@ -68,7 +70,7 @@
 <div class="wrap">
   <header>
     <div><h1>PDF Card Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v1.9</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.0</div></div>
   </header>
 
   <div class="grid">
@@ -120,7 +122,7 @@
         <strong>Print PDF preview</strong>
         <span id="viewerMeta">Make the print PDF to preview it</span>
       </div>
-      
+      <div id="previewLabels" class="previewLabels"></div>
       <div id="pdfWrap" class="pdfWrap"><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
   </div>
@@ -142,7 +144,7 @@
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),layoutInfo=el('layoutInfo'),
     quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
-    viewerMeta=el('viewerMeta'),uploadProgress=el('uploadProgress'),
+    viewerMeta=el('viewerMeta'),previewLabels=el('previewLabels'),uploadProgress=el('uploadProgress'),
     uploadProgressBar=el('uploadProgressBar'),uploadProgressText=el('uploadProgressText');
 
   let sourceBytes=null,sourceName='',sourceDoc=null,sourcePageW=0,sourcePageH=0,outputUrl=null;
@@ -308,6 +310,7 @@
       setProgress(68,'Building imposed preview…',true);
       if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
       pdfPreview.removeAttribute('src');
+      previewLabels.innerHTML='';
       viewerMeta.textContent='Building imposed preview…';
       setStatus('PDF ready.');
       renderQuantityList();
@@ -345,6 +348,13 @@
     return {x:l.startX+col*sourcePageW,y:l.sheetH-l.startY-(row+1)*sourcePageH};
   }
 
+  function updatePreviewLabels(pageCount){
+    if(!pageCount){previewLabels.innerHTML='';return;}
+    const labels=[];
+    for(let i=1;i<=pageCount;i++)labels.push('<span class="pageChip">Page '+i+'</span>');
+    previewLabels.innerHTML=labels.join('');
+  }
+
   async function buildPrintPdf(downloadAfter){
     if(!sourceDoc||!sourceBytes)return;
     updateUI();
@@ -380,6 +390,7 @@
       outputUrl=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
       viewerMeta.textContent=out.getPageCount()+' output pages · scroll to check them all';
+      updatePreviewLabels(out.getPageCount());
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
       setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
       setTimeout(()=>setProgress(100,'',false),700);
