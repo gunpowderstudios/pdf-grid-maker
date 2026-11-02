@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PDF Grid Maker</title>
+  <title>Gunpowder PDF Grid Maker</title>
   <meta name="description" content="Impose card and token PDFs onto A4 or A3 sheets at 100% for single- or double-sided printing." />
   <style>
     :root{
@@ -44,13 +44,17 @@
     .summary b{color:var(--ink)}.warning{color:var(--danger);font-weight:700;margin-top:8px}
     .qtyTools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
     .qtyList{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fafbf9}
-    .qtyRow{display:grid;grid-template-columns:1fr 74px 88px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line)}
+    .qtyRow{display:grid;grid-template-columns:1fr 66px 82px 34px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line)}
     .qtyRow:last-child{border-bottom:0}
     .qtyName{font-size:13px;line-height:1.25}
     .qtyName b{display:block;color:var(--ink)}
     .qtyName span{color:var(--muted);font-size:11px}
     .qtyRow input{padding:8px 9px;text-align:center}
     .miniBtn{padding:8px 9px;border-radius:9px;background:#edf0ed;color:var(--ink);font-size:11px}
+    .removeBtn{width:34px;height:34px;padding:0;border-radius:50%;background:#f1e8e8;color:#8a2f2f;font-size:18px;line-height:1}
+    .qtyRow.removed{opacity:.48}
+    .qtyRow.removed .qtyName b{text-decoration:line-through}
+    .qtyRow.removed .removeBtn{background:#e7f0ea;color:var(--green2);font-size:14px}
     .hidden{display:none!important}
     .viewer{height:calc(100vh - 120px);min-height:700px;display:flex;flex-direction:column;position:sticky;top:12px}
     .viewerHead{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -68,8 +72,8 @@
 <body>
 <div class="wrap">
   <header>
-    <div><h1>PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.6</div></div>
+    <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v2.7</div></div>
   </header>
 
   <div class="grid">
@@ -124,7 +128,7 @@
       <div id="pdfWrap" class="pdfWrap"><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
   </div>
-  <footer>PDF Grid Maker · Your PDF is processed on your device and is not uploaded.</footer>
+  <footer>Gunpowder PDF Grid Maker · Your PDF is processed on your device and is not uploaded.</footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -226,7 +230,8 @@
         rows.push('<div class="qtyRow" data-kind="double" data-index="'+d+'">'+
           '<div class="qtyName"><b>Card '+(d+1)+'</b><span>PDF pages '+(d*2+1)+' + '+(d*2+2)+'</span></div>'+
           '<input class="qtyInput" type="number" min="0" step="1" value="'+doubleQuantities[d]+'">'+
-          '<button class="miniBtn fillBtn" type="button">FILL SHEET</button></div>');
+          '<button class="miniBtn fillBtn" type="button">FILL SHEET</button>'+
+          '<button class="removeBtn" type="button" title="'+(doubleQuantities[d]>0?'Remove from grid':'Restore')+'">'+(doubleQuantities[d]>0?'×':'↺')+'</button></div>');
       }
     }else{
       for(let p=0;p<singleQuantities.length;p++){
@@ -234,7 +239,8 @@
         rows.push('<div class="qtyRow" data-kind="single" data-index="'+p+'">'+
           '<div class="qtyName"><b>Page '+(p+1)+'</b><span>Single-sided</span></div>'+
           '<input class="qtyInput" type="number" min="0" step="1" value="'+singleQuantities[p]+'">'+
-          '<button class="miniBtn fillBtn" type="button">FILL SHEET</button></div>');
+          '<button class="miniBtn fillBtn" type="button">FILL SHEET</button>'+
+          '<button class="removeBtn" type="button" title="'+(singleQuantities[p]>0?'Remove from grid':'Restore')+'">'+(singleQuantities[p]>0?'×':'↺')+'</button></div>');
       }
     }
     qtyList.innerHTML=rows.join('')||'<div style="padding:12px;color:var(--muted);font-size:13px">No pages selected.</div>';
@@ -243,11 +249,25 @@
       const idx=parseInt(row.dataset.index,10);
       const kind=row.dataset.kind;
       const input=row.querySelector('.qtyInput');
+      const currentQty=kind==='double'?doubleQuantities[idx]:singleQuantities[idx];
+      if(currentQty===0)row.classList.add('removed');
       input.addEventListener('input',()=>{
         const v=Math.max(0,parseInt(input.value||'0',10));
         if(kind==='double')doubleQuantities[idx]=v; else singleQuantities[idx]=v;
         scheduleRebuild();
       });
+      input.addEventListener('change',()=>renderQuantityList());
+      row.querySelector('.removeBtn').addEventListener('click',()=>{
+        const current=kind==='double'?doubleQuantities[idx]:singleQuantities[idx];
+        if(kind==='double'){
+          doubleQuantities[idx]=current>0?0:1;
+        }else{
+          singleQuantities[idx]=current>0?0:1;
+        }
+        renderQuantityList();
+        scheduleRebuild();
+      });
+
       row.querySelector('.fillBtn').addEventListener('click',()=>{
         if(kind==='double'){
           doubleQuantities=doubleQuantities.map(()=>0);
