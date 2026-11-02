@@ -19,7 +19,7 @@
     .local{background:var(--soft);border:1px solid #ccdacf;color:var(--green2);padding:9px 12px;border-radius:999px;font-size:13px;font-weight:750;white-space:nowrap}
     .grid{display:grid;grid-template-columns:420px 1fr;gap:22px;align-items:start;min-height:calc(100vh - 120px)}
     .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
-    .controls{padding:22px}
+    .controls{padding:22px;max-height:calc(100vh - 120px);overflow-y:auto;scrollbar-gutter:stable}
     .section{padding:18px 0;border-bottom:1px solid var(--line)}
     .section:first-child{padding-top:0}.section:last-child{border-bottom:0;padding-bottom:0}
     .label{font-size:12px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
@@ -43,7 +43,7 @@
     .summary{margin-top:12px;background:#f7f8f6;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;line-height:1.55;color:#455048}
     .summary b{color:var(--ink)}.warning{color:var(--danger);font-weight:700;margin-top:8px}
     .qtyTools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-    .qtyList{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fafbf9}
+    .qtyList{max-height:52vh;min-height:260px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--line);border-radius:12px;background:#fafbf9;scrollbar-gutter:stable}
     .qtyRow{display:grid;grid-template-columns:1fr 66px 82px 34px;gap:8px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--line)}
     .qtyRow:last-child{border-bottom:0}
     .qtyName{font-size:13px;line-height:1.25}
@@ -73,7 +73,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn card or token PDFs into print-ready A4/A3 sheets.</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.0</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.1</div></div>
   </header>
 
   <div class="grid">
@@ -120,7 +120,7 @@
       </div>
 
       <div class="section" id="quantitySection" hidden>
-        <div class="label">3. Quantities</div>
+        <div class="label">3. Quantities</div><div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">Double-sided: each row controls a front/back pair. Example: source pages 13 + 14 = Card 7.</div>
         <div class="qtyTools">
           <div class="field"><label for="setAllQty">Set all to</label><input id="setAllQty" type="number" min="0" step="1" value="1" /></div>
           <div class="field" style="display:flex;align-items:flex-end"><button id="applyAllBtn" class="secondary full" style="margin:0">APPLY TO ALL</button></div>
@@ -170,6 +170,7 @@
   let mixedSizes=false;
   let singleQuantities=[];
   let doubleQuantities=[];
+  let buildSequence=0;
 
   const mm = pt => pt / MM_TO_PT;
   const round1 = n => Math.round(n*10)/10;
@@ -343,7 +344,8 @@
     customSizeRow.style.display=paper.value==='custom'?'grid':'none';
     if(!sourceDoc)return;
     const p=sourceDoc.getPageCount(),l=getLayout();
-    const physical=l.perSheet?Math.ceil(expandedDesigns().length/l.perSheet):0;
+    const selectedItems=expandedDesigns().length;
+    const physical=l.perSheet?Math.ceil(selectedItems/l.perSheet):0;
     const outPages=sides.value==='double'?physical*2:physical;
     let warning='';
     if(mixedSizes)warning+='<div class="warning">Mixed source page sizes are not supported yet.</div>';
@@ -352,7 +354,7 @@
     layoutInfo.innerHTML='Sheet: <b>'+round1(mm(l.sheetW))+' × '+round1(mm(l.sheetH))+' mm</b><br>'+
       '<b>'+l.cols+' × '+l.rows+'</b> = <b>'+l.perSheet+' per side</b><br>'+
       'Grid: '+round1(mm(l.gridW||0))+' × '+round1(mm(l.gridH||0))+' mm<br>'+
-      'Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
+      'Selected items: <b>'+selectedItems+'</b><br>Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+
       (cutLines.checked?'<br>Fine grey cut lines: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0)||expandedDesigns().length===0;
@@ -479,6 +481,7 @@
 
   async function buildPrintPdf(downloadAfter){
     if(!sourceDoc||!sourceBytes)return;
+    const myBuild=++buildSequence;
     updateUI();
     const l=getLayout(),pageCount=sourceDoc.getPageCount();
     if(!l||!l.perSheet)return;
@@ -513,6 +516,7 @@
       const bytes=await out.save();
 
       const previewBytes=await makePreviewPdf(bytes,l,designs,pageCount);
+      if(myBuild!==buildSequence)return;
       if(outputUrl)URL.revokeObjectURL(outputUrl);
       outputUrl=URL.createObjectURL(new Blob([previewBytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
@@ -531,8 +535,15 @@
         a.remove();
         setTimeout(()=>URL.revokeObjectURL(cleanUrl),1000);
       }
-    }catch(err){console.error(err);setStatus(err.message||'Could not create the print PDF.',true)}
-    finally{makeBtn.disabled=wasDisabled}
+    }catch(err){
+      if(myBuild===buildSequence){
+        console.error(err);
+        setStatus(err.message||'Could not create the print PDF.',true);
+      }
+    }
+    finally{
+      if(myBuild===buildSequence)makeBtn.disabled=wasDisabled;
+    }
   }
 
   pdfInput.addEventListener('change',e=>loadFile(e.target.files[0]));
