@@ -74,7 +74,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.4</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.5</div></div>
   </header>
 
   <div class="grid">
@@ -116,6 +116,7 @@
         </div>
         <label class="check"><input id="cropMarks" type="checkbox" /> Add crop marks</label>
         <label class="check"><input id="cutLines" type="checkbox" /> Fine grey cut lines</label>
+        <label class="check"><input id="showRefs" type="checkbox" checked /> Show green reference numbers</label>
         <label class="check"><input id="centerGrid" type="checkbox" checked /> Centre grid horizontally</label>
         <div id="layoutInfo" class="summary">Upload a PDF to calculate the 100% layout.</div>
       </div>
@@ -159,7 +160,7 @@
   const el = id => document.getElementById(id);
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),
     customSizeRow=el('customSizeRow'),customWidth=el('customWidth'),customHeight=el('customHeight'),sides=el('sides'),
-    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),centerGrid=el('centerGrid'),
+    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),showRefs=el('showRefs'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),sourceSizeControls=el('sourceSizeControls'),
     sourceWidthMm=el('sourceWidthMm'),sourceHeightMm=el('sourceHeightMm'),lockAspect=el('lockAspect'),resetSourceSize=el('resetSourceSize'),
     layoutInfo=el('layoutInfo'),
@@ -358,7 +359,8 @@
       'Grid: '+round1(mm(l.gridW||0))+' × '+round1(mm(l.gridH||0))+' mm<br>'+
       'Selected items: <b>'+selectedItems+'</b><br>Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+
-      (cutLines.checked?'<br>Fine grey cut lines: <b>On</b>':'')+warning;
+      (cutLines.checked?'<br>Fine grey cut lines: <b>On</b>':'')+
+      (showRefs.checked?'<br>Green reference numbers: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0)||expandedDesigns().length===0;
   }
 
@@ -444,6 +446,7 @@
     const white=rgb(1,1,1);
     const green=rgb(23/255,75/255,57/255);
 
+    if(showRefs.checked){
     for(let outIndex=0;outIndex<pages.length;outIndex++){
       const page=pages[outIndex];
       const sheetIndex=sides.value==='double'?Math.floor(outIndex/2):outIndex;
@@ -477,6 +480,7 @@
         const tw=text.length*badgeFontSize*.55;
         page.drawText(text,{x:cx-tw/2,y:cy-badgeFontSize*.35,size:badgeFontSize,color:white});
       }
+    }
     }
     return await previewDoc.save();
   }
@@ -522,7 +526,9 @@
       if(outputUrl)URL.revokeObjectURL(outputUrl);
       outputUrl=URL.createObjectURL(new Blob([previewBytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
-      viewerMeta.innerHTML='<span class="noteBadge">1</span>'+out.getPageCount()+' output pages · green numbers will not print';
+      viewerMeta.innerHTML=showRefs.checked
+        ? '<span class="noteBadge">1</span>'+out.getPageCount()+' output pages · green numbers will not print'
+        : out.getPageCount()+' output pages';
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
       setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
       setTimeout(()=>setProgress(100,'',false),700);
@@ -556,7 +562,7 @@
     if(rebuildTimer)clearTimeout(rebuildTimer);
     rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
   }
-  [paper,orientation,customWidth,customHeight,cropMarks,cutLines,centerGrid].forEach(c=>{
+  [paper,orientation,customWidth,customHeight,cropMarks,cutLines,showRefs,centerGrid].forEach(c=>{
     c.addEventListener('change',()=>{renderQuantityList();scheduleRebuild();});
     c.addEventListener('input',scheduleRebuild);
   });
