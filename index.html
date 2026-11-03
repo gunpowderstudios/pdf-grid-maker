@@ -74,7 +74,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v4.7</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v4.8</div></div>
   </header>
 
   <div class="grid">
@@ -114,6 +114,7 @@
           <div class="field"><label for="sides">Printing</label><select id="sides"><option value="single">Single-sided</option><option value="double" selected>Double-sided</option></select></div>
           <div class="field" id="pageFilterField"><label for="pageFilter">Pages</label><select id="pageFilter"><option value="all">All pages</option><option value="odd">Odd (Fronts)</option><option value="even">Even (Backs)</option></select></div>
         </div>
+        <label class="check"><input id="printerSpreads" type="checkbox" /> Printer spreads (booklet order)</label>
         <label class="check"><input id="cropMarks" type="checkbox" /> Add crop marks</label>
         <label class="check"><input id="cutLines" type="checkbox" /> Fine grey cut lines</label>
         <label class="check"><input id="showRefs" type="checkbox" checked /> <span class="noteBadge">1</span>Show pink page reference numbers</label>
@@ -163,7 +164,7 @@
   const el = id => document.getElementById(id);
   const pdfInput=el('pdfInput'),dropZone=el('dropZone'),paper=el('paper'),orientation=el('orientation'),
     customSizeRow=el('customSizeRow'),customWidth=el('customWidth'),customHeight=el('customHeight'),sides=el('sides'),
-    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),showRefs=el('showRefs'),centerGrid=el('centerGrid'),
+    pageFilter=el('pageFilter'),pageFilterField=el('pageFilterField'),printerSpreads=el('printerSpreads'),cropMarks=el('cropMarks'),cutLines=el('cutLines'),showRefs=el('showRefs'),centerGrid=el('centerGrid'),
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),sourceSizeControls=el('sourceSizeControls'),
     sourceWidthMm=el('sourceWidthMm'),sourceHeightMm=el('sourceHeightMm'),lockAspect=el('lockAspect'),resetSourceSize=el('resetSourceSize'),
     layoutInfo=el('layoutInfo'),
@@ -405,7 +406,8 @@
       'Selected items: <b>'+selectedItems+'</b><br>Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+
       (cutLines.checked?'<br>Fine grey cut lines: <b>On</b>':'')+
-      (showRefs.checked?'<br>Pink reference numbers: <b>On</b>':'')+warning;
+      (showRefs.checked?'<br>Pink reference numbers: <b>On</b>':'')+
+      (printerSpreads.checked?'<br>Printer spreads: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0)||expandedDesigns().length===0;
   }
 
@@ -482,6 +484,37 @@
 
   function slotXY(l,row,col){
     return {x:l.startX+col*l.cellW,y:l.sheetH-l.startY-(row+1)*l.cellH};
+  }
+
+  async function applyPrinterSpreadOrder(pdfDoc){
+    if(!printerSpreads.checked)return pdfDoc;
+    const originalCount=pdfDoc.getPageCount();
+    let paddedCount=originalCount;
+    while(paddedCount%4!==0)paddedCount++;
+    const spreadDoc=await PDFDocument.create();
+    const [sheetW,sheetH]=sheetPoints();
+
+    // Copy original pages and create blank placeholders as required.
+    const copied=await spreadDoc.copyPages(pdfDoc,Array.from({length:originalCount},(_,i)=>i));
+    const refs=[];
+    for(let i=0;i<paddedCount;i++){
+      if(i<originalCount)refs.push(copied[i]);
+      else refs.push(null);
+    }
+
+    // Booklet printer-spread order: last+first, second+second-last, etc.
+    const order=[];
+    let low=0,high=paddedCount-1;
+    while(low<high){
+      order.push(high,low,low+1,high-1);
+      low+=2; high-=2;
+    }
+
+    for(const idx of order){
+      if(refs[idx]) spreadDoc.addPage(refs[idx]);
+      else spreadDoc.addPage([sheetW,sheetH]);
+    }
+    return spreadDoc;
   }
 
   async function buildFlattenedSourceImages(pageCount){
@@ -595,7 +628,8 @@
         }
         if(cropMarks.checked){drawCropMarksPdf(front,l);if(back)drawCropMarksPdf(back,l)}
       }
-      const bytes=await out.save();
+      const finalDoc=await applyPrinterSpreadOrder(out);
+      const bytes=await finalDoc.save();
 
       const previewBytes=await makePreviewPdf(bytes,l,designs,pageCount);
       if(myBuild!==buildSequence)return;
@@ -603,9 +637,9 @@
       outputUrl=URL.createObjectURL(new Blob([previewBytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
       viewerMeta.innerHTML=showRefs.checked
-        ? '<span class="noteBadge">1</span>'+out.getPageCount()+' output pages · pink numbers will not print'
-        : out.getPageCount()+' output pages';
-      setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
+        ? '<span class="noteBadge">1</span>'+finalDoc.getPageCount()+' output pages · pink numbers will not print'
+        : finalDoc.getPageCount()+' output pages';
+      setStatus('Print PDF ready — '+finalDoc.getPageCount()+' pages.');
       setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
       setTimeout(()=>setProgress(100,'',false),700);
 
@@ -638,7 +672,7 @@
     if(rebuildTimer)clearTimeout(rebuildTimer);
     rebuildTimer=setTimeout(()=>{if(sourceDoc&&!makeBtn.disabled)buildPrintPdf(false)},180);
   }
-  [paper,orientation,customWidth,customHeight,cropMarks,cutLines,showRefs,centerGrid].forEach(c=>{
+  [paper,orientation,customWidth,customHeight,printerSpreads,cropMarks,cutLines,showRefs,centerGrid].forEach(c=>{
     c.addEventListener('change',()=>{renderQuantityList();scheduleRebuild();});
     c.addEventListener('input',scheduleRebuild);
   });
