@@ -74,7 +74,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v4.3</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v4.4</div></div>
   </header>
 
   <div class="grid">
@@ -122,7 +122,7 @@
       </div>
 
       <div class="section" id="quantitySection" hidden>
-        <div class="label">3. Quantities</div><div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">Pages are paired automatically: page 1 = Item 1 Front, page 2 = Item 1 Back, page 3 = Item 2 Front, page 4 = Item 2 Back, and so on.</div>
+        <div class="label">3. Quantities</div><div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">Pages are paired automatically: page 1 = Asset 1 Front, page 2 = Asset 1 Back, page 3 = Asset 2 Front, page 4 = Asset 2 Back, and so on.</div>
         <div class="qtyTools">
           <div class="field"><label for="setAllQty">Set all to</label><input id="setAllQty" type="number" min="0" step="1" value="1" /></div>
           <div class="field" style="display:flex;align-items:flex-end"><button id="applyAllBtn" class="secondary full" style="margin:0">APPLY TO ALL</button></div>
@@ -149,8 +149,10 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
   const { PDFDocument, rgb } = PDFLib;
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   const MM_TO_PT = 72 / 25.4;
   const PAPER_MM = {A4:[210,297], A3:[297,420]};
   const CROP_GAP_PT = 1 * MM_TO_PT;
@@ -283,7 +285,7 @@
     if(sides.value==='double'){
       for(let d=0;d<doubleQuantities.length;d++){
         rows.push('<div class="qtyRow" data-kind="double" data-index="'+d+'">'+
-          '<div class="qtyName"><b>Item '+(d+1)+' — Front + Back</b><span>PDF pages '+(d*2+1)+' + '+(d*2+2)+'</span></div>'+
+          '<div class="qtyName"><b>Asset '+(d+1)+' Front + Back</b><span>PDF pages '+(d*2+1)+' + '+(d*2+2)+' · '+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</span></div>'+
           '<input class="qtyInput" type="number" min="0" step="1" value="'+doubleQuantities[d]+'">'+
           '<button class="miniBtn fillBtn" type="button">FILL SHEET</button>'+
           '<button class="removeBtn" type="button" title="'+(doubleQuantities[d]>0?'Remove from grid':'Restore')+'">'+(doubleQuantities[d]>0?'×':'↺')+'</button></div>');
@@ -292,7 +294,7 @@
       for(let p=0;p<singleQuantities.length;p++){
         if(!pageAllowed(p))continue;
         rows.push('<div class="qtyRow" data-kind="single" data-index="'+p+'">'+
-          '<div class="qtyName"><b>Item '+(Math.floor(p/2)+1)+' '+(p%2===0?'Front':'Back')+'</b><span>PDF page '+(p+1)+'</span></div>'+
+          '<div class="qtyName"><b>Asset '+(Math.floor(p/2)+1)+' '+(p%2===0?'Front':'Back')+'</b><span>PDF page '+(p+1)+' · '+round1(mm(sourcePageW))+' × '+round1(mm(sourcePageH))+' mm</span></div>'+
           '<input class="qtyInput" type="number" min="0" step="1" value="'+singleQuantities[p]+'">'+
           '<button class="miniBtn fillBtn" type="button">FILL SHEET</button>'+
           '<button class="removeBtn" type="button" title="'+(singleQuantities[p]>0?'Remove from grid':'Restore')+'">'+(singleQuantities[p]>0?'×':'↺')+'</button></div>');
@@ -438,6 +440,29 @@
     return {x:l.startX+col*sourcePageW,y:l.sheetH-l.startY-(row+1)*sourcePageH};
   }
 
+  async function buildFlattenedSourceImages(pageCount){
+    const renderDoc=await pdfjsLib.getDocument({data:sourceBytes.slice()}).promise;
+    const images=[];
+    const targetDpi=300;
+    for(let i=1;i<=pageCount;i++){
+      const page=await renderDoc.getPage(i);
+      const base=page.getViewport({scale:1});
+      const targetWidthPx=Math.max(1,Math.round((sourcePageW/72)*targetDpi));
+      const scale=targetWidthPx/base.width;
+      const viewport=page.getViewport({scale});
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.ceil(viewport.width);
+      canvas.height=Math.ceil(viewport.height);
+      const ctx=canvas.getContext('2d',{alpha:true});
+      await page.render({canvasContext:ctx,viewport}).promise;
+      const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+      const bytes=new Uint8Array(await blob.arrayBuffer());
+      images.push(bytes);
+      setProgress(72+Math.round((i/pageCount)*15),'Flattening PDF effects… '+i+'/'+pageCount,true);
+    }
+    return images;
+  }
+
   async function makePreviewPdf(printBytes, layout, designs, pageCount){
     const previewDoc=await PDFDocument.load(printBytes.slice());
     const pages=previewDoc.getPages();
@@ -498,7 +523,10 @@
     setProgress(downloadAfter?72:72,downloadAfter?'Building download PDF…':'Building imposed preview…',true);
     try{
       const out=await PDFDocument.create();
-      const embedded=await out.embedPdf(sourceBytes.slice(),Array.from({length:pageCount},(_,i)=>i));
+      const flattened=await buildFlattenedSourceImages(pageCount);
+      if(myBuild!==buildSequence)return;
+      const embedded=[];
+      for(let i=0;i<flattened.length;i++)embedded.push(await out.embedPng(flattened[i]));
       const designs=expandedDesigns(),physicalSheets=Math.ceil(designs.length/l.perSheet);
       for(let s=0;s<physicalSheets;s++){
         const front=out.addPage([l.sheetW,l.sheetH]),back=sides.value==='double'?out.addPage([l.sheetW,l.sheetH]):null;
@@ -507,13 +535,13 @@
           const d=designs[idx],row=Math.floor(pos/l.cols),col=pos%l.cols;
           const fxy=slotXY(l,row,col);
           if(sides.value==='single'){
-            front.drawPage(embedded[d],{x:fxy.x,y:fxy.y,width:sourcePageW,height:sourcePageH});
+            front.drawImage(embedded[d],{x:fxy.x,y:fxy.y,width:sourcePageW,height:sourcePageH});
             if(cutLines.checked)drawCutLinePdf(front,fxy.x,fxy.y);
           }else{
-            front.drawPage(embedded[d*2],{x:fxy.x,y:fxy.y,width:sourcePageW,height:sourcePageH});
+            front.drawImage(embedded[d*2],{x:fxy.x,y:fxy.y,width:sourcePageW,height:sourcePageH});
             if(cutLines.checked)drawCutLinePdf(front,fxy.x,fxy.y);
             const m=mirroredSlot(l,row,col),bxy=slotXY(l,m.row,m.col);
-            back.drawPage(embedded[d*2+1],{x:bxy.x,y:bxy.y,width:sourcePageW,height:sourcePageH});
+            back.drawImage(embedded[d*2+1],{x:bxy.x,y:bxy.y,width:sourcePageW,height:sourcePageH});
             if(cutLines.checked)drawCutLinePdf(back,bxy.x,bxy.y);
           }
         }
