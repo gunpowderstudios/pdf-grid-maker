@@ -59,7 +59,7 @@
     .viewer{height:calc(100vh - 120px);min-height:700px;display:flex;flex-direction:column;position:sticky;top:12px}
     .viewerHead{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
     .viewerHead strong{font-size:14px}.viewerHead span{font-size:12px;color:var(--muted)}
-    .noteBadge{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;font-size:10px;font-weight:850;margin-right:6px;vertical-align:middle}
+    .noteBadge{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#d41472;color:#fff;font-size:10px;font-weight:850;margin-right:6px;vertical-align:middle}
     .pdfWrap{position:relative}
     .pdfWrap{flex:1;min-height:0;background:#c7c9c7;overflow:hidden}
     .pdfWrap iframe{display:block;width:100%;height:100%;border:0;background:#fff}
@@ -74,7 +74,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.7</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.8</div></div>
   </header>
 
   <div class="grid">
@@ -116,7 +116,7 @@
         </div>
         <label class="check"><input id="cropMarks" type="checkbox" /> Add crop marks</label>
         <label class="check"><input id="cutLines" type="checkbox" /> Fine grey cut lines</label>
-        <label class="check"><input id="showRefs" type="checkbox" checked /> <span class="noteBadge">1</span>Show page reference numbers</label>
+        <label class="check"><input id="showRefs" type="checkbox" checked /> <span class="noteBadge">1</span>Show pink page reference numbers</label>
         <label class="check"><input id="centerGrid" type="checkbox" checked /> Centre grid horizontally</label>
         <div id="layoutInfo" class="summary">Upload a PDF to calculate the 100% layout.</div>
       </div>
@@ -140,7 +140,7 @@
     <section class="panel viewer">
       <div class="viewerHead">
         <strong>Print PDF preview</strong>
-        <span id="viewerMeta"><span class="noteBadge">1</span>Green numbers will not print</span>
+        <span id="viewerMeta"><span class="noteBadge">1</span>pink numbers will not print</span>
       </div>
       <div id="pdfWrap" class="pdfWrap"><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
@@ -360,7 +360,7 @@
       'Selected items: <b>'+selectedItems+'</b><br>Physical sheets: <b>'+physical+'</b> · Output PDF pages: <b>'+outPages+'</b>'+
       (cropMarks.checked?'<br>Crop marks: <b>On</b>':'')+
       (cutLines.checked?'<br>Fine grey cut lines: <b>On</b>':'')+
-      (showRefs.checked?'<br>Green reference numbers: <b>On</b>':'')+warning;
+      (showRefs.checked?'<br>Pink reference numbers: <b>On</b>':'')+warning;
     makeBtn.disabled=mixedSizes||!l.perSheet||(sides.value==='double'&&p%2!==0)||expandedDesigns().length===0;
   }
 
@@ -444,7 +444,7 @@
     const badgeRadius=16;
     const badgeFontSize=16;
     const white=rgb(1,1,1);
-    const green=rgb(23/255,75/255,57/255);
+    const pink=rgb(212/255,20/255,114/255);
 
     if(showRefs.checked){
     for(let outIndex=0;outIndex<pages.length;outIndex++){
@@ -475,7 +475,7 @@
         const xy=slotXY(layout,rr,cc);
         const cx=xy.x+(sourcePageW/3);
         const cy=xy.y+(sourcePageH/3);
-        page.drawCircle({x:cx,y:cy,size:badgeRadius,color:green});
+        page.drawCircle({x:cx,y:cy,size:badgeRadius,color:pink});
         const text=String(sourcePageNo);
         const tw=text.length*badgeFontSize*.55;
         page.drawText(text,{x:cx-tw/2,y:cy-badgeFontSize*.35,size:badgeFontSize,color:white});
@@ -527,7 +527,7 @@
       outputUrl=URL.createObjectURL(new Blob([previewBytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
       viewerMeta.innerHTML=showRefs.checked
-        ? '<span class="noteBadge">1</span>'+out.getPageCount()+' output pages · green numbers will not print'
+        ? '<span class="noteBadge">1</span>'+out.getPageCount()+' output pages · pink numbers will not print'
         : out.getPageCount()+' output pages';
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
       setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
