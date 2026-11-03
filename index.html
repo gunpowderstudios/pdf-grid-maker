@@ -74,7 +74,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v4.1</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v4.2</div></div>
   </header>
 
   <div class="grid">
@@ -122,7 +122,7 @@
       </div>
 
       <div class="section" id="quantitySection" hidden>
-        <div class="label">3. Quantities</div><div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">Double-sided: each row controls a front/back pair. Example: source pages 13 + 14 = Card 7.</div>
+        <div class="label">3. Quantities</div><div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">Pages are paired automatically: page 1 = Card 1 Front, page 2 = Card 1 Back, page 3 = Card 2 Front, page 4 = Card 2 Back, and so on.</div>
         <div class="qtyTools">
           <div class="field"><label for="setAllQty">Set all to</label><input id="setAllQty" type="number" min="0" step="1" value="1" /></div>
           <div class="field" style="display:flex;align-items:flex-end"><button id="applyAllBtn" class="secondary full" style="margin:0">APPLY TO ALL</button></div>
@@ -283,7 +283,7 @@
     if(sides.value==='double'){
       for(let d=0;d<doubleQuantities.length;d++){
         rows.push('<div class="qtyRow" data-kind="double" data-index="'+d+'">'+
-          '<div class="qtyName"><b>Card '+(d+1)+'</b><span>PDF pages '+(d*2+1)+' + '+(d*2+2)+'</span></div>'+
+          '<div class="qtyName"><b>Card '+(d+1)+' — Front + Back</b><span>PDF pages '+(d*2+1)+' + '+(d*2+2)+'</span></div>'+
           '<input class="qtyInput" type="number" min="0" step="1" value="'+doubleQuantities[d]+'">'+
           '<button class="miniBtn fillBtn" type="button">FILL SHEET</button>'+
           '<button class="removeBtn" type="button" title="'+(doubleQuantities[d]>0?'Remove from grid':'Restore')+'">'+(doubleQuantities[d]>0?'×':'↺')+'</button></div>');
@@ -292,7 +292,7 @@
       for(let p=0;p<singleQuantities.length;p++){
         if(!pageAllowed(p))continue;
         rows.push('<div class="qtyRow" data-kind="single" data-index="'+p+'">'+
-          '<div class="qtyName"><b>Page '+(p+1)+'</b><span>Single-sided</span></div>'+
+          '<div class="qtyName"><b>Card '+(Math.floor(p/2)+1)+' '+(p%2===0?'Front':'Back')+'</b><span>PDF page '+(p+1)+'</span></div>'+
           '<input class="qtyInput" type="number" min="0" step="1" value="'+singleQuantities[p]+'">'+
           '<button class="miniBtn fillBtn" type="button">FILL SHEET</button>'+
           '<button class="removeBtn" type="button" title="'+(singleQuantities[p]>0?'Remove from grid':'Restore')+'">'+(singleQuantities[p]>0?'×':'↺')+'</button></div>');
