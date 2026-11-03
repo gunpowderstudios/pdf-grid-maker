@@ -59,6 +59,7 @@
     .viewer{height:calc(100vh - 120px);min-height:700px;display:flex;flex-direction:column;position:sticky;top:12px}
     .viewerHead{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
     .viewerHead strong{font-size:14px}.viewerHead span{font-size:12px;color:var(--muted)}
+    .noteBadge{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;font-size:10px;font-weight:850;margin-right:6px;vertical-align:middle}
     .pdfWrap{position:relative}
     .pdfWrap{flex:1;min-height:0;background:#c7c9c7;overflow:hidden}
     .pdfWrap iframe{display:block;width:100%;height:100%;border:0;background:#fff}
@@ -73,7 +74,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.3</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.4</div></div>
   </header>
 
   <div class="grid">
@@ -125,6 +126,7 @@
           <div class="field"><label for="setAllQty">Set all to</label><input id="setAllQty" type="number" min="0" step="1" value="1" /></div>
           <div class="field" style="display:flex;align-items:flex-end"><button id="applyAllBtn" class="secondary full" style="margin:0">APPLY TO ALL</button></div>
         </div>
+        <button id="resetQtyBtn" class="secondary full" type="button" style="margin:0 0 10px">RESET QUANTITIES</button>
         <div id="qtyList" class="qtyList"></div>
       </div>
 
@@ -137,7 +139,7 @@
     <section class="panel viewer">
       <div class="viewerHead">
         <strong>Print PDF preview</strong>
-        <span id="viewerMeta">Green source-page numbers are preview only and will not print.</span>
+        <span id="viewerMeta"><span class="noteBadge">1</span>Green numbers will not print</span>
       </div>
       <div id="pdfWrap" class="pdfWrap"><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
@@ -161,7 +163,7 @@
     makeBtn=el('makeBtn'),sourceInfo=el('sourceInfo'),sourceSizeControls=el('sourceSizeControls'),
     sourceWidthMm=el('sourceWidthMm'),sourceHeightMm=el('sourceHeightMm'),lockAspect=el('lockAspect'),resetSourceSize=el('resetSourceSize'),
     layoutInfo=el('layoutInfo'),
-    quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),
+    quantitySection=el('quantitySection'),qtyList=el('qtyList'),setAllQty=el('setAllQty'),applyAllBtn=el('applyAllBtn'),resetQtyBtn=el('resetQtyBtn'),
     status=el('status'),pdfWrap=el('pdfWrap'),pdfPreview=el('pdfPreview'),
     viewerMeta=el('viewerMeta'),uploadProgress=el('uploadProgress'),
     uploadProgressBar=el('uploadProgressBar'),uploadProgressText=el('uploadProgressText');
@@ -520,7 +522,7 @@
       if(outputUrl)URL.revokeObjectURL(outputUrl);
       outputUrl=URL.createObjectURL(new Blob([previewBytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
-      viewerMeta.textContent=out.getPageCount()+' output pages · green numbers will not print';
+      viewerMeta.innerHTML='<span class="noteBadge">1</span>'+out.getPageCount()+' output pages · green numbers will not print';
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
       setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
       setTimeout(()=>setProgress(100,'',false),700);
@@ -570,6 +572,17 @@
   sourceHeightMm.addEventListener('input',()=>{syncSourceSize('h');renderQuantityList();scheduleRebuild();});
   lockAspect.addEventListener('change',()=>syncSourceSize('w'));
   resetSourceSize.addEventListener('click',resetImportedSize);
+
+  resetQtyBtn.addEventListener('click',()=>{
+    if(sides.value==='double'){
+      doubleQuantities=doubleQuantities.map(()=>1);
+    }else{
+      singleQuantities=singleQuantities.map(()=>1);
+    }
+    setAllQty.value=1;
+    renderQuantityList();
+    scheduleRebuild();
+  });
 
   applyAllBtn.addEventListener('click',()=>{
     const v=Math.max(0,parseInt(setAllQty.value||'0',10));
