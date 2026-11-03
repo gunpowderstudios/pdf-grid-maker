@@ -73,7 +73,7 @@
 <div class="wrap">
   <header>
     <div><h1>Gunpowder PDF Grid Maker</h1><div class="tag">Turn single-page PDFs into cards or tokens on a grid - now that's magic!</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.2</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="local">Runs locally in your browser</div><div class="local">v3.3</div></div>
   </header>
 
   <div class="grid">
@@ -137,7 +137,7 @@
     <section class="panel viewer">
       <div class="viewerHead">
         <strong>Print PDF preview</strong>
-        <span id="viewerMeta">Make the print PDF to preview it</span>
+        <span id="viewerMeta">Green source-page numbers are preview only and will not print.</span>
       </div>
       <div id="pdfWrap" class="pdfWrap"><iframe id="pdfPreview" title="Generated print PDF preview"></iframe></div>
     </section>
@@ -520,7 +520,7 @@
       if(outputUrl)URL.revokeObjectURL(outputUrl);
       outputUrl=URL.createObjectURL(new Blob([previewBytes],{type:'application/pdf'}));
       pdfPreview.src=outputUrl+'#toolbar=1&navpanes=0&view=Fit';
-      viewerMeta.textContent=out.getPageCount()+' output pages · source-page badges are preview only';
+      viewerMeta.textContent=out.getPageCount()+' output pages · green numbers will not print';
       setStatus('Print PDF ready — '+out.getPageCount()+' pages.');
       setProgress(100,downloadAfter?'PDF ready to download':'Preview ready',true);
       setTimeout(()=>setProgress(100,'',false),700);
